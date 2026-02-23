@@ -1,0 +1,603 @@
+history ------ #It'll give history of all the commands used
+sudo -i  --- # To go inside root folder
+cd /etc/kubernetes/manifests/    ---------------- # This is a path where all the kubernetes files are present
+root@manager:/etc/kubernetes/manifests# ll
+total 24
+drwxrwxr-x 2 root root 4096 Oct 14 03:31 ./
+drwxrwxr-x 4 root root 4096 Oct 14 03:31 ../
+-rw------- 1 root root 2525 Oct 14 03:31 etcd.yaml
+-rw------- 1 root root 3872 Oct 14 03:31 kube-apiserver.yaml
+-rw------- 1 root root 3393 Oct 14 03:31 kube-controller-manager.yaml
+-rw-r--r-- 1 root root    0 Sep  9 20:32 .kubelet-keep
+-rw------- 1 root root 1656 Oct 14 03:31 kube-scheduler.yaml
+
+sysctl net.ipv4.ip_forward
+sudo kubeadm config images pull
+sudo crictl images
+sudo crictl ps -a #To check running images
+kubeadm join 10.0.0.100:6443 --token 4ell6o.r0p9s0wsn2tu8tt5 \
+        --discovery-token-ca-cert-hash sha256:dc6ff074db2ce6d9d06a45a0f53edf9122d0ea08133d892e27884e7b74c5ab02
+		
+kubectl apply -f calico.yaml
+sudo systemctl status kubelet #To check active 
+scp package.sh mandip@10.0.0.101: ------ # To login to different machine and copy paste the file to it.
+ssh mandip@10.0.0.101: ------ # To login to different machine
+kubeadm token create --print-join-command #To generate a new token
+
+sudo vim /var/lib/kubelet/kubeadm-flags.env #To add host ip -> --node-ip=10.0.0.101 
+sudo systemctl daemon-reload
+sudo systemctl restart kubelet.service
+
+
+K8s main commands:
+echo "source <(kubectl completion bash)" >> ~/.bas #For auto completion with double tab 
+kubectl <Double Tab>
+kubectl get nodes
+kubectl -n kube-system get pods  -- # This will deplay all the pods running in the system, all the kubernetes pods, like api-server, scheduler, etc
+kubectl explain node.metadata
+kubectl get nodes -o wide
+
+kubectl explain node.metadata > /tmp/node-metadata.txt #Copy the data to a given path and file
+kubectl explain node.metadata --output=plaintext-openapiv2
+kubectl describe node nodeone
+
+
+kubectl run webapp --image=nginx
+kubectl get pods : gives pod details in short
+kubectl get pods -o wide 
+kubectl describe pod <container-name:webapp>
+kubectl delete pod webapp
+kubectl logs webapp : application related logs 
+kubectl logs webapp |grep -i <search:launching> - filtering by words
+kubectl logs webapp |grep -i launching > /temp/mylogs  : creates file with logs
+kubectl logs webapp |grep -i launching | tee /temp/mylogs   :shows on screen and saves in the logs as well
+
+
+kubectl version --client # in ubuntu desktop to check kubectl is installed for which version
+
+----------------------- Command to set host ip in Ubuntu Desktop after every restart ----------------------------------------
+# On Ubuntu desktop - find the new interface name
+ip a
+
+# Let's say it's ens34 or ens37, configure it
+sudo ip addr add 10.0.0.50/8 dev ens34  # Use any free IP in 10.0.0.0/8
+sudo ip link set ens34 up
+
+# Test connectivity
+ping 10.0.0.100
+
+-------------------------------------------------------------------------------------------
+
+--------------------- Commands to install open ssh ------------------------------------------
+# Install OpenSSH server
+sudo apt update
+sudo apt install -y openssh-server
+
+# Start and enable SSH service
+sudo systemctl start ssh
+sudo systemctl enable ssh
+
+# Check if SSH is running
+sudo systemctl status ssh
+
+# Verify SSH is listening on port 22
+sudo ss -tulpn | grep :22
+
+------------------------------------------------------------------
+-----------------------Creaing and deleting pod using declarative way----------
+
+kubectl create -f firstpod.yaml # create is not used because if the container's attribute or configuration is changed then pod has to be deleted and brought up again. apply is used instead
+kubectl delete -f firstpod.yaml
+
+kubectl get pod <pod-name> -o yaml  # it gives all the pod configuration in yaml form created from yaml, this details is what is stored in the etcd, also called Live Object Configuration.
+kubectl apply -f firstpod.yaml   # here create is not used as it compares the name of resource and not the contents of it, when we use apply it compares the current provided configuration with the last configuration from the etcd.
+
+---------------------------------------------------------------------
+--------------Filtering pods by labels ------------------------------
+
+kubectl get pod webapp --show-labels
+NAME    READY   STATUS    RESTARTS   AGE   IP             NODE      NOMINATED NODE   READINESS GATES   LABELS
+nginx   1/1     Running   0          23h   172.17.10.71   nodeone   <none>           <none>            client=abc,name=nginxlabel
+
+kubectl get pods -L client -L env -L managed-by  # shows label as header 
+kubectl get pods -o wide -l "client=abc" -L client -L name
+NAME    READY   STATUS    RESTARTS   AGE   IP             NODE      NOMINATED NODE   READINESS GATES   CLIENT   NAME
+nginx   1/1     Running   0          23h   172.17.10.71   nodeone   <none>           <none>            abc      nginxlabel
+
+kubectl get pods -l "client=abc" -L client # filters label by value
+kubectl get pods -l "client!=abc" -L client # filters label by value 
+kubectl get pods -l "client=abc, name=nginxlabel" -L client # filters label by value here "," is AND operation
+kubectl get pods -l "env in (test,dev)" -L env # filters label by value here "in" is OR operation
+kubectl get pods -l "env notin (test,dev)" -L env # filters label by value here "notin" is NOR operation
+
+kubectl delete pods -l "client=abc"  # delete pod by filtered label value
+kubectl top pod ------ # To check the memory and CPU consumption of the pods
+
+journalctl -k | grep -i memory --- # to see which processes were killed in the nodes.
+
+------------------ Deployment Commands ----------------------------
+kubectl get deploy --- # To get the deploy pods
+NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+nginx-deployment   3/3     3            3           27m ------------- # nginx-deployment is the deployment name
+
+kubectl get rs ---- # To get the created replica set
+NAME                          DESIRED   CURRENT   READY   AGE
+nginx-deployment-75f9654b5d   3         3         3       28m -------------- # 75f9654b5d is the deployed replica set name 
+
+kubectl get pods
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-75f9654b5d-cz64b   1/1     Running   0          29m
+nginx-deployment-75f9654b5d-j8cnz   1/1     Running   0          29m
+nginx-deployment-75f9654b5d-lzbt8   1/1     Running   0          29m -------------- # cz64b, j8cnz, lzbt8 are the pods name <deployment name - replica set name - pod name>
+
+kubectl get pods --show-labels
+NAME                                READY   STATUS    RESTARTS   AGE   LABELS
+nginx-deployment-75f9654b5d-cz64b   1/1     Running   0          31m   app=nginx,pod-template-hash=75f9654b5d
+nginx-deployment-75f9654b5d-j8cnz   1/1     Running   0          31m   app=nginx,pod-template-hash=75f9654b5d
+nginx-deployment-75f9654b5d-lzbt8   1/1     Running   0          31m   app=nginx,pod-template-hash=75f9654b5d
+
+kubectl get pods -o wide
+NAME                                READY   STATUS    RESTARTS   AGE   IP             NODE      NOMINATED NODE   READINESS GATES
+nginx-deployment-75f9654b5d-4rzgg   1/1     Running   0          20m   172.17.10.90   nodeone   <none>           <none>
+nginx-deployment-75f9654b5d-j8cnz   1/1     Running   0          55m   172.17.10.88   nodeone   <none>           <none>
+nginx-deployment-75f9654b5d-lzbt8   1/1     Running   0          55m   172.17.10.89   nodeone   <none>           <none>
+nginxburstable                      1/1     Running   1          45h   172.17.10.86   nodeone   <none>           <none>
+mandip@manager:~/myPod$ kubectl get svc ----- # This command will show the running service. nginx-deployment-svc service running 3 nginx-deployment pods with one common/cluster ip
+NAME                   TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+kubernetes             ClusterIP   10.96.0.1       <none>        443/TCP   13d
+nginx-deployment-svc   ClusterIP   10.97.251.205   <none>        80/TCP    35s
+
+kubectl describe svc nginx-deployment-svc
+Name:                     nginx-deployment-svc
+Namespace:                default
+Labels:                   <none>
+Annotations:              <none>
+Selector:                 app=nginx
+Type:                     ClusterIP
+IP Family Policy:         SingleStack
+IP Families:              IPv4
+IP:                       10.97.251.205
+IPs:                      10.97.251.205
+Port:                     <unset>  80/TCP
+TargetPort:               80/TCP
+Endpoints:                172.17.10.88:80,172.17.10.89:80,172.17.10.90:80
+Session Affinity:         None
+Internal Traffic Policy:  Cluster
+Events:                   <none>
+
+kubectl get ep nginx-deployment-svc ------- # This will give the ips of the pods running under it
+NAME                   ENDPOINTS                                         AGE
+nginx-deployment-svc   172.17.10.88:80,172.17.10.89:80,172.17.10.90:80   14m
+
+kubectl get ep nginx-deployment-svc -o yaml ---- # This will give detailed info of the ips in yaml format
+apiVersion: v1
+kind: Endpoints
+metadata:
+  annotations:
+    endpoints.kubernetes.io/last-change-trigger-time: "2025-10-28T03:17:25Z"
+  creationTimestamp: "2025-10-28T03:17:25Z"
+  name: nginx-deployment-svc
+  namespace: default
+  resourceVersion: "98064"
+  uid: 979c4011-a11a-48a8-923c-530be837126a
+subsets:
+- addresses:
+  - ip: 172.17.10.88
+    nodeName: nodeone
+    targetRef:
+      kind: Pod
+      name: nginx-deployment-75f9654b5d-j8cnz
+      namespace: default
+      uid: 79e14640-9e07-496d-a4e9-803b03949318
+  - ip: 172.17.10.89
+    nodeName: nodeone
+    targetRef:
+      kind: Pod
+      name: nginx-deployment-75f9654b5d-lzbt8
+      namespace: default
+      uid: da67b910-de48-4b27-89fe-33ad0026d2af
+  - ip: 172.17.10.90
+    nodeName: nodeone
+    targetRef:
+      kind: Pod
+      name: nginx-deployment-75f9654b5d-4rzgg
+      namespace: default
+      uid: 95ced4a4-8c74-4c49-ba7f-60d8a95c5ce1
+  ports:
+  - port: 80
+    protocol: TCP
+	
+	
+kubectl scale --replicas=3 rs/foo                                 # Scale a replicaset named 'foo' to 3
+kubectl scale --replicas=3 -f foo.yaml                            # Scale a resource specified in "foo.yaml" to 3
+kubectl scale --current-replicas=2 --replicas=3 deployment/mysql  # If the deployment named mysql's current size is 2, scale mysql to 3
+kubectl scale --replicas=5 rc/foo rc/bar rc/baz                   # Scale multiple replication controllers
+
+
+kubectl scale --replicas=2 deployment nginx-deployment ---- # scale down number of pods from 3 to 2 -- it'll delete recently created pods.
+kubectl scale --replicas=4 deployment nginx-deployment ---- # scale out number of pods from 3 to 4
+
+kubectl rollout history deployment hello-deploy ---- # It tells how many times the deployment attributes are changed
+or
+kubectl rollout history deployment/hello-deploy ---- # Check the history of deployments including the revision
+
+kubectl rollout undo deployment/hello-deploy                         # Rollback to the previous deployment
+kubectl rollout undo deployment/hello-deploy --to-revision=2         # Rollback to a specific revision
+kubectl rollout status -w deployment/hello-deploy                    # Watch rolling update status of "hello-deploy" deployment until completion
+kubectl rollout restart deployment/hello-deploy                      # Rolling restart of the "hello-deploy" deployment   
+
+kubectl exec -it <pod_name> -- /bin/bash ------ # This will take me inside pod's bash 
+
+--------------- Imperative way of editing and deploying the service pod --------------------------------------
+kubectl edit deployment <pod_name> ---- # This is to edit the live running pod
+kubectl expose deployment <pod_name> --name <pod_name-svc> --- #This is to deploy service imperatively and not directly from yaml
+kubectl get deploy <pod_name> -o yaml > temp-app.yaml --- #This is to store the running pod's attributes in the temp file. I can now change the running pod configuration in temp-app file and run kubectl apply -f temp-app.yaml which will apply the configuration.
+
+kubectl expose deployment <pod_name> --name <pod-name-svc-np> --type NodePort --------- # This create and exposes new port outside the machine. With this port and the machine ip I can access the application in my system browser or machine.
+
+kubectl expose deployment dbapp --name dbapp-svc-np --type NodePort
+mandip@manager:~$ kubectl get svc
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+dbapp-svc    ClusterIP   10.107.239.240   <none>        80/TCP    113m
+kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP   18d
+mandip@manager:~$ kubectl expose deployment dbapp --name dbapp-svc-np --type NodePort
+service/dbapp-svc-np exposed
+mandip@manager:~$ kubectl get svc
+NAME           TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+dbapp-svc      ClusterIP   10.107.239.240   <none>        80/TCP         114m
+dbapp-svc-np   NodePort    10.103.221.184   <none>        80:31352/TCP   19s
+
+http://192.168.239.131:31352/
+
+-------------- Name Space ----------------------------
+
+kubectl get ns  ------- # To get namespaces
+kubectl delete ns <name_space_name>  ---------- # To delete by name space
+
+## This is because of finalizers.
+## This is to remove namespace which is stuck in terminating status
+
+NS=`kubectl get ns |grep Terminating | awk 'NR==1 {print $1}'` \
+&& kubectl get namespace "$NS" -o json  \
+| tr -d "\n" | sed "s/\"finalizers\": \[[^]]\+\]/\"finalizers\": []/" \
+| kubectl replace --raw /api/v1/namespaces/$NS/finalize -f -
+
+kubectl get namespace
+kubectl create ns <namespace> ---- # To create new namespace
+e.g. kubectl create ns dev ---------- # namespace create with the name dev
+
+Note: namespace needs to be created first before pods are deployed under that namespace
+kubectl apply -f <deployment.yaml> -n <namespace> ---- # To deploy pods under defined namespace --- Imperative way of deploying pods under given namespace
+e.g. kubectl apply -f firstpod.yaml -n dev -------- # It deploy pods under namespace dev
+kubectl get pods -n <namespace> / kubectl -n dev get pods -------- # It gets pod deployed under defined namespace
+
+---- After defining namespace in the yaml ---
+mandip@manager:~/myPod$ kubectl get ns
+NAME              STATUS   AGE
+default           Active   19d
+dev               Active   2m23s
+kube-node-lease   Active   19d
+kube-public       Active   19d
+kube-system       Active   19d
+prod              Active   2m11s
+test              Active   2m17s
+mandip@manager:~/myPod$ kubectl get pods
+No resources found in default namespace.
+mandip@manager:~/myPod$ kubectl get pods -n dev
+NAME    READY   STATUS    RESTARTS   AGE
+dbapp   1/1     Running   0          18s
+nginx   1/1     Running   0          18s
+mandip@manager:~/myPod$ kubectl get pods -n test
+NAME    READY   STATUS    RESTARTS   AGE
+multi   2/2     Running   0          24s
+mandip@manager:~/myPod$ kubectl get pods -n prod
+NAME     READY   STATUS    RESTARTS   AGE
+multi2   2/2     Running   0          31s
+
+---- Allocating resources to the namespace. After allocation, the namespace will not consume more than what is defined -------
+# Create a new resource quota named my-quota
+  kubectl create quota my-quota
+--hard=cpu=1,memory=1G,pods=2,services=3,replicationcontrollers=2,resourcequotas=1,secrets=5,persistentvolumeclaims=10
+
+  # Create a new resource quota named best-effort
+  kubectl create quota best-effort --hard=pods=100 --scopes=BestEffort
+  
+kubectl create quota dev-quota --hard=cpu=2,memory=1.5G,pods=5,services=3 -n dev
+resourcequota/dev-quota created
+mandip@manager:~/myPod$ kubectl describe ns dev
+Name:         dev
+Labels:       kubernetes.io/metadata.name=dev
+Annotations:  <none>
+Status:       Active
+
+Resource Quotas
+  Name:     dev-quota
+  Resource  Used  Hard
+  --------  ---   ---
+  cpu       0     2
+  memory    0     1500M
+  pods      2     5
+  services  0     3
+
+No LimitRange resource.
+
+Note: Once namespace resource is created, then every pod created after it needs resource(CPU, memory, number of pods, etc) to be defined or else pod creation will be forbidden.
+E.g. kubectl run webapp --image=nginx -n dev
+Error from server (Forbidden): pods "webapp" is forbidden: failed quota: dev-quota: must specify cpu for: webapp; memory for: webapp
+----- When exceeding quota-----
+ Warning  FailedCreate      5s    replicaset-controller  Error creating: pods "nginx-deployment-75f9654b5d-kjchs" is forbidden: exceeded quota: dev-quota, requested: pods=1, used: pods=5, limited: pods=5
+ 
+ 
+kubectl -n dev exec <pod-name> -- curl http://<ip-address of different namespace pod>
+mandip@manager:~$ kubectl get pods -o wide -n dev
+NAME    READY   STATUS    RESTARTS   AGE    IP              NODE      NOMINATED NODE   READINESS GATES
+dbapp   1/1     Running   0          135m   172.17.10.100   nodeone   <none>           <none>
+nginx   1/1     Running   0          135m   172.17.10.123   nodeone   <none>           <none>
+mandip@manager:~$ kubectl get pods -o wide -n test
+NAME     READY   STATUS    RESTARTS   AGE    IP              NODE      NOMINATED NODE   READINESS GATES
+multi    2/2     Running   0          135m   172.17.10.120   nodeone   <none>           <none>
+webapp   1/1     Running   0          23m    172.17.10.127   nodeone   <none>           <none>
+mandip@manager:~$ kubectl exec webapp -- curl http://172.17.10.123 -n test
+Error from server (NotFound): pods "webapp" not found
+mandip@manager:~$ kubectl -n test exec webapp -- curl http://172.17.10.123
+
+kubectl label ns dev area=dev ---- #Create label with name area=dev for namespace dev
+
+----------- Scheduler ---------------
+
+kubectl label node nodeone cpu=i7 -------- # Labeling nodes
+
+NAME        STATUS     ROLES           AGE   VERSION   CPU   MEMORY   ENV   DISK
+manager     Ready      control-plane   19d   v1.32.9
+nodeone     Ready      <none>          19d   v1.32.9   i7    medium         sata
+
+kubectl label node nodetwo cpu=xeon --overwrite ----- # To change the already labeled value.
+
+kubectl describe node nodeone | grep -i taint
+Taints:             <none>
+kubectl describe node manager | grep -i taint
+Taints:             node-role.kubernetes.io/control-plane:NoSchedule
+
+kubectl taint node nodeone food=pizza:NoSchedule ---- # To add tolerance to deploy in specific nodes if it matches. Checked during scheduling ignored during execution
+kubectl taint node nodeone food:NoSchedule-    ----------- # To remove taint 
+kubectl taint node nodeone food=pizza:NoExecute --------- #To add tolerance to deploy in specific nodes if it matches. Checked in both during scheduling and during execution
+
+---------------------- Secrets and ConfigMaps ----------------------------
+kubectl create secret --help
+kubectl create secret docker-registry my-registry-secret \
+--docker-username=mandy1795 \
+--docker-password=Mandy@1995 \
+--docker-email=mandip.pandit95@gmail.com
+
+kubectl delete secret my-registry-secret
+
+kubectl logs <pod_name>   ----- # To check the logs of the pod
+kubectl create secret generic sqlcreds --from-literal username=supersecret --from-literal password=random    ------- # To encode the password.
+secret/sqlcreds created
+mandip@manager:~/myPod/secrets_configMaps$ kubectl get secrets
+NAME       TYPE     DATA   AGE
+sqlcreds   Opaque   2      8s
+
+kubectl describe secret sqlcreds
+Name:         sqlcreds
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Type:  Opaque
+
+Data
+====
+password:  6 bytes
+username:  11 bytes
+
+kubectl get secret sqlcreds -o yaml   --- # To see the secret details in the yaml format
+apiVersion: v1
+data:
+  password: cmFuZG9t
+  username: c3VwZXJzZWNyZXQ=
+kind: Secret
+metadata:
+  creationTimestamp: "2025-11-05T03:21:03Z"
+  name: sqlcreds
+  namespace: default
+  resourceVersion: "189278"
+  uid: 3063245e-83df-4dda-adc6-5be30dc1b7ff
+type: Opaque
+
+echo cmFuZG9t | base64 --decode   --------------- # To decode the password if given access
+randomm
+
+echo "supersecret" | base64  --------- # To encode the username
+c3VwZXJzZWNyZXQK
+echo "random" | base64 ------------ # To encode the password. These are later defined in the file to do file based secret configuration
+cmFuZG9tCg==
+
+kubectl apply -f sql-login-secret.yaml
+secret/mysql-creds created
+kubectl get secrets
+NAME          TYPE     DATA   AGE
+mysql-creds   Opaque   2      7s  ------ # use this file based secret configuration in the yaml env variable
+sqlcreds      Opaque   2      13m
+
+create a new file with same name as httpd.conf
+create a new file with same name as index.html
+kubectl create cm dev-apache-config --from-file httpd.conf  --------# This will create a configMap with name dev-apache-config
+kubectl create cm dev-webpage --from-file index.html  --------# This will create a configMap with name dev-webpage ------ cm (Config Map)
+
+kubectl get cm
+kubectl describe cm dev-apache-config
+
+
+--------------------------------- Helm --------------------------
+To install Helm:
+sudo apt-get install curl gpg apt-transport-https --yes
+curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install helm
+
+helm --help
+helm repo list -- #To check if any repository cloned locally
+helm search hub <application_name> -------- #helm search hub apache ---- To search apache in the https://artifacthub.io/ 
+helm repo add bitnami https://charts.bitnami.com/bitnami ---------- # To clone bitnami repository. 
+Note: Helmm clones the repository and not just application.
+helm search repo ------- # Show all applications under cloned repo
+helm repo update ----------- #To sync or update any new packages of this repo
+helm search repo apache ------------ # Searching apache application inside bitnami repository
+helm search repo apache --output yaml -------------- #This command gives more info about application in yaml format
+helm search repo bitnami/apache --versions ----------- # This will show all the versions of this application from old to new
+helm show chart bitnami/apache --version 11.4.29  ------------ # Shows detailed info about the current version application
+helm show values bitnami/apache --version 11.4.29 ---------- #shows detailed info about the default parameters used. Like replicas count, deployment mode (burstable, guranteed, etc.)
+
+helm -n <namespace> install <pod-name> <repo/application> --version <version>
+helm -n prod install prod-apache bitnami/apache --version 11.4.29 ---- To install apache version 11.4.29 from repo bitnami with pod name prod-apache under namespace prod
+helm -n prod install prod-apache bitnami/apache --values prod-apache-values.yaml --version 11.4.29 ------ # To install apache with my defined values instead of the default one.
+helm -n prod upgrade prod-apache bitnami/apache --values prod-apache-values.yaml --version 11.4.29 ------ # To upgrade apache with the new changed values.
+helm -n prod list  --------- # To check the application deployment
+NAME            NAMESPACE       REVISION        UPDATED                                 STATUS          CHART           APP VERSION
+prod-apache     prod            1               2025-11-13 02:46:19.504366016 +0000 UTC deployed        apache-11.4.29  2.4.65
+
+kubectl -n prod get all  ------ #It'll show list of all pod deployed under namespace prod
+helm -n prod uninstall prod-apache -------- # To unlist/remove the running application
+kubectl -n prod get pods --show labels
+kubectl describe -n prod pod prod-apache-54dc666f96-9zcws
+kubectl -n prod get pods -L env -L managed-by
+
+helm -n prod get values prod-apache --------- #This will show what values used to deploy this application
+
+Note: Difference b/w show and get values in helm command -> Show will show the default values configured for the image/chart, and get will show my configured values for the same image/chart which I used to bring up pod.
+
+helm -n prod history prod-apache ---------- # This will give the history of how many times this pod is changed
+helm -n prod get values prod-apache --revision 2 ------------ #This will show what changes were done in the values for the 2nd version
+helm rollback prod-apache 1 -n prod ----------- # This is to roll back to version 1 from any version
+
+1. Get the Apache URL by running:
+  kubectl port-forward --namespace prod svc/prod-apache 8080:80
+  echo URL            : http://127.0.0.1:8080/
+  
+  
+---------------------- Storage Partition --------------------------
+sudo lsblk  ------ # This will show memory information
+NAME                      MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+sda                         8:0    0   20G  0 disk
+├─sda1                      8:1    0    1M  0 part
+├─sda2                      8:2    0  1.8G  0 part /boot
+└─sda3                      8:3    0 18.2G  0 part
+  └─ubuntu--vg-ubuntu--lv 252:0    0   10G  0 lvm  /
+sdb                         8:16   0   15G  0 disk
+sr0                        11:0    1  1.9G  0 rom
+
+sudo fdisk /dev/sdb ---------------- # This to partition sdb disk.
+commands -> n, enter (choosing default)
+After partitionsudo lsblk
+NAME                      MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+sda                         8:0    0   20G  0 disk
+├─sda1                      8:1    0    1M  0 part
+├─sda2                      8:2    0  1.8G  0 part /boot
+└─sda3                      8:3    0 18.2G  0 part
+  └─ubuntu--vg-ubuntu--lv 252:0    0   10G  0 lvm  /
+sdb                         8:16   0   15G  0 disk
+└─sdb1                      8:17   0   15G  0 part
+sr0                        11:0    1  1.9G  0 rom
+
+sudo mkfs.ext4 /dev/sdb1 ---------- # To format the disk
+sudo blkid     ------------------ #It shows disk with uuid
+/dev/sr0: BLOCK_SIZE="2048" UUID="2025-04-15-22-38-40-00" LABEL="Ubuntu-Server 25.04 amd64" TYPE="iso9660" PTTYPE="PMBR"
+/dev/mapper/ubuntu--vg-ubuntu--lv: UUID="6dc11f7b-bad3-4dcc-b734-ca5179234ad0" BLOCK_SIZE="4096" TYPE="ext4"
+/dev/sda2: UUID="93d86aa3-c12e-40a4-8cb0-ff2ef7be85f8" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="04743f7a-1dd2-4fe6-a441-9d19abcd59fa"
+/dev/sda3: UUID="KIh92a-jzyE-RWuH-DhAO-K8zM-Jii0-X60Aog" TYPE="LVM2_member" PARTUUID="cb957d6d-a82b-40e8-b463-73b679622f07"
+/dev/sdb1: UUID="f6fa4864-0403-4843-b54e-e0655ebcbdb1" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="4907ac85-01"
+/dev/sda1: PARTUUID="96091a9f-389c-4a51-8f9e-c1331e262366"
+
+sudo -i ------------- #To switch to root
+vim /etc/fstab -> adding following line inside the fstab file to mount disk to /kubedata directory ->  UUID="f6fa4864-0403-4843-b54e-e0655ebcbdb1" /kubedata ext4 defaults 0 0
+mount -a ----- To mount to the added path
+df -a --------- # To check if it's mounted successfully
+apt update
+apt install nfs-kernel-server
+vim /etc/exports -> Adding following line to give disk permissions -> /kubedata *(rw,sync,no_subtree_check,no_root_squash)
+exportfs -r -> To reload disk after giving permissions
+exportfs -a -> All
+systemctl restart nfs-kernel-server ----------- #To restart kernel server
+systemctl status nfs-kernel-server -------------- # To check the status of the kernel server
+● nfs-server.service - NFS server and services
+     Loaded: loaded (/usr/lib/systemd/system/nfs-server.service; enabled; preset: enabled)
+     Active: active (exited) since Sat 2025-11-15 04:54:12 UTC; 48s ago
+ Invocation: 5896538b27984c8284b2830804163c42
+       Docs: man:rpc.nfsd(8)
+             man:exportfs(8)
+    Process: 19915 ExecStartPre=/usr/sbin/exportfs -r (code=exited, status=0/SUCCESS)
+    Process: 19917 ExecStart=/bin/sh -c /usr/sbin/nfsdctl autostart || /usr/sbin/rpc.nfsd (code=exited, status=0/SUCCESS)
+   Main PID: 19917 (code=exited, status=0/SUCCESS)
+   Mem peak: 1.6M
+        CPU: 51ms
+
+Nov 15 04:54:12 nodethree systemd[1]: Starting nfs-server.service - NFS server and services...
+Nov 15 04:54:12 nodethree systemd[1]: Finished nfs-server.service - NFS server and services.
+
+showmount -e 10.0.0.103  -------------- # To check if mount is successfully done.
+Export list for 10.0.0.103:
+/kubedata *
+
+sudo apt install nfs-common ------ #To install showmount where it's not recognized
+
+helm repo add nfs-store https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/ ------- # Adding nfs-store repository
+helm repo update ------- #To update the heml chart
+kubectl create ns storagenfs ------ # To create a namespace
+helm search repo nfs-store --------- @ To get the repo details
+NAME                                            CHART VERSION   APP VERSION     DESCRIPTION
+nfs-store/nfs-subdir-external-provisioner       4.0.18          4.0.2           nfs-subdir-external-provisioner is an automatic...
+
+helm show values nfs-store/nfs-subdir-external-provisioner
+
+helm install nfs-sc \
+nfs-store/nfs-subdir-external-provisioner \
+--set nfs.server=10.0.0.103 \
+--set nfs.path=/kubedata \
+--set storageClass.defaultClass=true \
+--set storageClass.name=hello \
+--set storageClass.onDelete=true -n storagenfs  ------------- # Changing the values runtime. In this nfs-sc is the storage class name.
+
+helm -n storagenfs list
+NAME    NAMESPACE       REVISION        UPDATED                                 STATUS          CHART                                   APP VERSION
+nfs-sc  storagenfs      1               2025-11-15 05:22:34.474852556 +0000 UTC deployed        nfs-subdir-external-provisioner-4.0.18  4.0.2
+
+kubectl get sc -> to check storage class
+helm -n storagenfs list
+helm list
+helm uninstall nfs-sc
+
+kubectl apply -f storage-app.yaml
+persistentvolumeclaim/sample-nfs-pvc created
+kubectl get pvc --------- # To check pvc (Persistent VOLUME Claim)
+NAME             STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+sample-nfs-pvc   Bound    pvc-2bf277ca-6622-4711-8a2a-53b2bd26439b   2Gi        RWO            hello          <unset>                 5s
+kubectl get pv ---------- # To check Persistent Volume
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                    STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+pvc-2bf277ca-6622-4711-8a2a-53b2bd26439b   2Gi        RWO            Delete           Bound    default/sample-nfs-pvc   hello          <unset>                          7s
+
+echo "THIS IS APP ONE" > index.html ------------ # Way to insert a text in a new file
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
