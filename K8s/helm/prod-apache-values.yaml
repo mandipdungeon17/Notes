@@ -1,0 +1,25 @@
+commonLabels:
+  chart-by: bitnami
+  env: prod
+replicaCount: 3
+podLabels:
+  name: apache
+  managed-by: helm
+  version: "11.4.29"
+  component: frontend
+  part-of: employee
+resources:
+  limits:
+    cpu: 200m
+    memory: 200Mi
+  requests:
+    cpu: 100m
+    memory: 100Mi
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPU: 50
+  targetMemory: 50
+service:
+  type: ClusterIP
