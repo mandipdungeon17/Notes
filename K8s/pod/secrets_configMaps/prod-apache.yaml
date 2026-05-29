@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: prod-apache
+  labels:
+    app: prod
+spec:
+  containers:
+  - name: boxtwo
+    image: docker.io/lovelearnlinux/webserver:v1
