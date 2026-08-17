@@ -577,6 +577,11 @@ kubectl get pv ---------- # To check Persistent Volume
 NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                    STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
 pvc-2bf277ca-6622-4711-8a2a-53b2bd26439b   2Gi        RWO            Delete           Bound    default/sample-nfs-pvc   hello          <unset>                          7s
 
+
+kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list
+kafka-consumer-groups.sh --bootstrap-server localhost:9092 --group wesStream
+kafka-consumer-groups.sh --bootstrap-server localhost:9092 --group wesStream --topic wes.order.order.ord_order_header --reset-offsets --to-latest --execute   #To reset the offset when consumer is in inactive state only
+kubectl exec -it -n essential  kafka-controller-0 -- /bin/bash  #Inside pod container
 echo "THIS IS APP ONE" > index.html ------------ # Way to insert a text in a new file
 
 
